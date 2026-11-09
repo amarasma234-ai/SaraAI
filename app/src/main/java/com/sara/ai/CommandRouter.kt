@@ -4,7 +4,7 @@ import android.content.Context
 
 object CommandRouter {
     fun handle(ctx: Context, raw: String): String {
-        val t = raw.lowercase().trim()
+        val t = Normalizer.apply(raw.lowercase().trim())
         fun has(vararg w: String) = w.any { t.contains(it) }
         val on = has(" on", "chalu", "jala", "enable")
         val off = has(" off", "band", "bujha", "disable")
