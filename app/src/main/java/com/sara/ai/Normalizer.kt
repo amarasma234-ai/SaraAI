@@ -21,7 +21,7 @@ object Normalizer {
         "नेटवर्क" to "network", "इंटरनेट" to "internet",
         "टेम्परेचर" to "temperature", "तापमान" to "temperature",
         "डिवाइस" to "device", "पर्सेंट" to "", "प्रतिशत" to "",
-        "सारा" to "", "सर" to "", "हेलो" to "", "हेलो" to ""
+        "सारा" to "", "हेलो" to ""
     )
     private val digits = "०१२३४५६७८९"
 
