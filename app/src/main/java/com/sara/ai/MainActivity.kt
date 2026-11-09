@@ -40,6 +40,20 @@ class MainActivity : Activity() {
                 append("Sara: Theek hai, ab main nahi sunungi.")
             }
         })
+        root.addView(Button(this).apply {
+            text = "♿ Accessibility ON karo (touch/click/scroll)"
+            setOnClickListener { startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
+        })
+        root.addView(Button(this).apply {
+            text = "👧 Anime dikhao / chhupao"
+            setOnClickListener {
+                if (!Settings.canDrawOverlays(this@MainActivity)) {
+                    append("Sara: Pehle 'Display over other apps' ON karo.")
+                    startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName")))
+                } else if (AvatarOverlay.visible()) AvatarOverlay.hide(this@MainActivity)
+                else { AvatarOverlay.show(this@MainActivity); AvatarOverlay.speaking(true) }
+            }
+        })
         input = EditText(this).apply { hint = "Ya command likho: youtube kholo, torch on..." }
         root.addView(input, ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
         val row = LinearLayout(this)
@@ -99,9 +113,10 @@ class MainActivity : Activity() {
     private fun run(text: String) {
         if (text.isBlank()) return
         append("Tum: $text")
-        val reply = try { CommandRouter.handle(this, text) } catch (e: Exception) { "Error: ${e.message}" }
-        append("Sara: $reply")
-        tts.speak(reply, TextToSpeech.QUEUE_FLUSH, null, "sara")
+        CommandRouter.handleAsync(this, text) { reply ->
+            append("Sara: $reply")
+            tts.speak(reply, TextToSpeech.QUEUE_FLUSH, null, "sara")
+        }
     }
 
     private fun append(s: String) { log.append(s + "\n\n") }

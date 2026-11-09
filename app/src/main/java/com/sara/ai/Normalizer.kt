@@ -2,6 +2,13 @@ package com.sara.ai
 
 object Normalizer {
     private val map = listOf(
+        "क्विक सेटिंग्स" to "quick settings", "क्विक सेटिंग" to "quick settings",
+        "स्क्रॉल" to "scroll", "स्वाइप" to "swipe", "नीचे" to "neeche", "ऊपर" to "upar",
+        "बाएं" to "left", "दाएं" to "right", "क्लिक" to "click", "दबाओ" to "dabao",
+        "वापस" to "wapas", "पीछे" to "peeche", "होम" to "home", "नोटिफिकेशन" to "notification",
+        "सर्च" to "search", "पहला" to "pehla", "रिजल्ट" to "result", "वीडियो" to "video",
+        "टाइप" to "type", "हाँ" to "haan", "हां" to "haan", "नहीं" to "nahi", "रुको" to "ruko",
+        "भेज दो" to "bhej do", "भेजो" to "bhejo", "रिसेंट" to "recent",
         "प्ले स्टोर" to "play store", "प्लेस्टोर" to "play store",
         "व्हाट्सएप" to "whatsapp", "व्हाट्सऐप" to "whatsapp", "वाट्सएप" to "whatsapp",
         "वॉट्सऐप" to "whatsapp", "व्हाट्सप" to "whatsapp", "व्हाट्स एप" to "whatsapp",
@@ -29,6 +36,8 @@ object Normalizer {
         var t = s
         for ((k, v) in map) t = t.replace(k, " $v ")
         for (i in digits.indices) t = t.replace(digits[i], ('0' + i))
+        t = " $t ".replace(" को ", " ko ").replace(" पे ", " pe ").replace(" पर ", " pe ")
+            .replace(" में ", " me ").replace(" और ", " aur ").replace(" फिर ", " phir ")
         return t.replace(Regex("\\s+"), " ").trim()
     }
 }

@@ -1,7 +1,6 @@
 package com.sara.ai
 
 import android.app.*
-import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.graphics.drawable.Icon
@@ -23,6 +22,13 @@ class SaraService : Service(), RecognitionListener {
     private var awaitUntil = 0L
     private val wake = listOf("sara", "sarah", "saara", "सारा", "सरा", "sera")
 
+    private val hideTask = object : Runnable {
+        override fun run() {
+            if (!speaking && System.currentTimeMillis() >= awaitUntil) AvatarOverlay.hide(this@SaraService)
+            else if (running) h.postDelayed(this, 3000)
+        }
+    }
+
     override fun onBind(i: Intent?): IBinder? = null
 
     override fun onCreate() {
@@ -40,11 +46,21 @@ class SaraService : Service(), RecognitionListener {
         }
     }
 
-    private fun afterSpeak() { h.post { speaking = false; listen() } }
+    private fun afterSpeak() {
+        h.post {
+            speaking = false
+            AvatarOverlay.speaking(false)
+            if (Pending.has()) awaitUntil = System.currentTimeMillis() + 10000
+            h.removeCallbacks(hideTask)
+            h.postDelayed(hideTask, 4000)
+            listen()
+        }
+    }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == "STOP") {
             running = false
+            AvatarOverlay.hide(this)
             stopForeground(STOP_FOREGROUND_REMOVE)
             stopSelf()
             return START_NOT_STICKY
@@ -95,6 +111,7 @@ class SaraService : Service(), RecognitionListener {
         val withWake = all.firstOrNull { a -> wake.any { a.lowercase().contains(it) } }
         val awaiting = System.currentTimeMillis() < awaitUntil
         if (withWake == null && !awaiting) { listen(); return }
+        AvatarOverlay.show(this)
         var cmd = (withWake ?: all.firstOrNull() ?: "").lowercase()
         wake.forEach { cmd = cmd.replace(it, " ") }
         listOf("hey", "hi ", "hello", "हे ", "हेलो").forEach { cmd = cmd.replace(it, " ") }
@@ -104,8 +121,7 @@ class SaraService : Service(), RecognitionListener {
             awaitUntil = System.currentTimeMillis() + 8000
             say("Ji, boliye.")
         } else {
-            val reply = try { CommandRouter.handle(this, cmd) } catch (e: Exception) { "Error: ${e.message}" }
-            say(reply)
+            CommandRouter.handleAsync(this, cmd) { say(it) }
         }
     }
 
@@ -121,6 +137,8 @@ class SaraService : Service(), RecognitionListener {
     private fun say(text: String) {
         if (!ttsReady) { listen(); return }
         speaking = true
+        AvatarOverlay.show(this)
+        AvatarOverlay.speaking(true)
         sr?.cancel()
         tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "u" + System.nanoTime())
     }
@@ -135,6 +153,8 @@ class SaraService : Service(), RecognitionListener {
 
     override fun onDestroy() {
         running = false
+        h.removeCallbacks(hideTask)
+        AvatarOverlay.hide(this)
         sr?.destroy()
         tts.shutdown()
         super.onDestroy()
