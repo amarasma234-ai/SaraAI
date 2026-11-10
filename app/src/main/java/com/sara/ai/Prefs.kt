@@ -8,4 +8,5 @@ object Prefs {
     fun set(c: Context, k: String, v: String) { sp(c).edit().putString(k, v).apply() }
     fun getF(c: Context, k: String, d: Float): Float = sp(c).getFloat(k, d)
     fun setF(c: Context, k: String, v: Float) { sp(c).edit().putFloat(k, v).apply() }
+    fun color(c: Context, k: String, d: Int): Int = get(c, k, "").toIntOrNull() ?: d
 }

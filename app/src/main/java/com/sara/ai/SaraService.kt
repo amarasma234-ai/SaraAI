@@ -10,6 +10,7 @@ import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 
 class SaraService : Service(), RecognitionListener {
+    companion object { @Volatile var active = false }
     private val h = Handler(Looper.getMainLooper())
     private var sr: SpeechRecognizer? = null
     private lateinit var speaker: Speaker
@@ -49,6 +50,7 @@ class SaraService : Service(), RecognitionListener {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == "STOP") {
             running = false
+            active = false
             AvatarOverlay.hide(this)
             stopForeground(STOP_FOREGROUND_REMOVE)
             stopSelf()
@@ -70,6 +72,7 @@ class SaraService : Service(), RecognitionListener {
         if (Build.VERSION.SDK_INT >= 29)
             startForeground(1, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE)
         else startForeground(1, n)
+        active = true
         if (!running) { running = true; listen() }
         return START_STICKY
     }
@@ -154,6 +157,7 @@ class SaraService : Service(), RecognitionListener {
 
     override fun onDestroy() {
         running = false
+        active = false
         h.removeCallbacks(hideTask)
         AvatarOverlay.hide(this)
         sr?.destroy()
