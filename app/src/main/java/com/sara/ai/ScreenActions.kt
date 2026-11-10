@@ -16,6 +16,10 @@ object Pending {
 }
 
 object ScreenActions {
+    private val sensitiveWords = listOf("pay", "payment", "transfer", "send money", "delete", "uninstall", "remove",
+        "buy", "purchase", "place order", "password", "reset", "log out", "logout", "paisa", "bhugtan", "पेमेंट", "डिलीट")
+    fun isSensitive(s: String) = sensitiveWords.any { s.contains(it, true) }
+
     fun needAcc(ctx: Context): String {
         ctx.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
         return "Screen control ke liye Accessibility ON karni hogi. Settings khol di hai, Sara AI chuno aur ON karo. " +

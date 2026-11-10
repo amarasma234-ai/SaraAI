@@ -91,8 +91,8 @@ class SaraAccessibilityService : AccessibilityService() {
     }
 
     fun typeText(s: String): Boolean {
-        val n = collect { it.isEditable && it.isFocused }.firstOrNull()
-            ?: collect { it.isEditable }.firstOrNull() ?: return false
+        val n = collect { it.isEditable && !it.isPassword && it.isFocused }.firstOrNull()
+            ?: collect { it.isEditable && !it.isPassword }.firstOrNull() ?: return false
         n.performAction(AccessibilityNodeInfo.ACTION_FOCUS)
         val b = Bundle()
         b.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, s)

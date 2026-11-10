@@ -8,23 +8,21 @@ import android.os.*
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
-import android.speech.tts.TextToSpeech
-import android.speech.tts.UtteranceProgressListener
-import java.util.Locale
 
 class SaraService : Service(), RecognitionListener {
     private val h = Handler(Looper.getMainLooper())
     private var sr: SpeechRecognizer? = null
-    private lateinit var tts: TextToSpeech
-    private var ttsReady = false
+    private lateinit var speaker: Speaker
     private var speaking = false
     private var running = false
     private var awaitUntil = 0L
-    private val wake = listOf("sara", "sarah", "saara", "सारा", "सरा", "sera")
+    private val wake = listOf("sara", "sarah", "saara", "sera", "सारा", "सरा", "সারা", "சாரா", "సారా",
+        "સારા", "ਸਾਰਾ", "ಸಾರಾ", "സാറ", "سارا", "ساره")
 
     private val hideTask = object : Runnable {
         override fun run() {
-            if (!speaking && System.currentTimeMillis() >= awaitUntil) AvatarOverlay.hide(this@SaraService)
+            if (!speaking && !Agent.running && System.currentTimeMillis() >= awaitUntil)
+                AvatarOverlay.hide(this@SaraService)
             else if (running) h.postDelayed(this, 3000)
         }
     }
@@ -33,17 +31,8 @@ class SaraService : Service(), RecognitionListener {
 
     override fun onCreate() {
         super.onCreate()
-        tts = TextToSpeech(this) {
-            if (it == TextToSpeech.SUCCESS) {
-                tts.language = Locale("hi", "IN")
-                tts.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
-                    override fun onStart(id: String?) {}
-                    override fun onDone(id: String?) { afterSpeak() }
-                    override fun onError(id: String?) { afterSpeak() }
-                })
-                ttsReady = true
-            }
-        }
+        speaker = Speaker(this)
+        speaker.finished = { afterSpeak() }
     }
 
     private fun afterSpeak() {
@@ -85,6 +74,23 @@ class SaraService : Service(), RecognitionListener {
         return START_STICKY
     }
 
+    private fun recognizerIntent(): Intent {
+        val lang = Prefs.get(this, "sttLang", "hi-IN")
+        return Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, packageName)
+            putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
+            if (lang == "auto") {
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE, "hi-IN")
+                if (Build.VERSION.SDK_INT >= 33) {
+                    putExtra(RecognizerIntent.EXTRA_ENABLE_LANGUAGE_DETECTION, true)
+                    putExtra(RecognizerIntent.EXTRA_LANGUAGE_DETECTION_ALLOWED_LANGUAGES,
+                        arrayListOf("hi-IN", "en-IN", "bn-IN", "ta-IN", "te-IN", "mr-IN", "gu-IN", "pa-IN", "kn-IN", "ml-IN", "ur-IN"))
+                }
+            } else putExtra(RecognizerIntent.EXTRA_LANGUAGE, lang)
+        }
+    }
+
     private fun listen() {
         if (!running || speaking) return
         h.post {
@@ -95,12 +101,7 @@ class SaraService : Service(), RecognitionListener {
                 sr?.destroy()
                 sr = SpeechRecognizer.createSpeechRecognizer(this).also {
                     it.setRecognitionListener(this)
-                    it.startListening(Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                        putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                        putExtra(RecognizerIntent.EXTRA_LANGUAGE, "hi-IN")
-                        putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, packageName)
-                        putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
-                    })
+                    it.startListening(recognizerIntent())
                 }
             } catch (e: Exception) { h.postDelayed({ listen() }, 1500) }
         }
@@ -110,18 +111,18 @@ class SaraService : Service(), RecognitionListener {
         val all = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION) ?: arrayListOf()
         val withWake = all.firstOrNull { a -> wake.any { a.lowercase().contains(it) } }
         val awaiting = System.currentTimeMillis() < awaitUntil
-        if (withWake == null && !awaiting) { listen(); return }
+        if (withWake == null && !awaiting && !Agent.running) { listen(); return }
         AvatarOverlay.show(this)
-        var cmd = (withWake ?: all.firstOrNull() ?: "").lowercase()
-        wake.forEach { cmd = cmd.replace(it, " ") }
-        listOf("hey", "hi ", "hello", "हे ", "हेलो").forEach { cmd = cmd.replace(it, " ") }
+        var cmd = (withWake ?: all.firstOrNull() ?: "")
+        wake.forEach { cmd = cmd.replace(it, " ", ignoreCase = true) }
+        listOf("hey ", "hi ", "hello", "हे ", "हेलो").forEach { cmd = cmd.replace(it, " ", ignoreCase = true) }
         cmd = cmd.trim()
         awaitUntil = 0
         if (cmd.isBlank()) {
             awaitUntil = System.currentTimeMillis() + 8000
             say("Ji, boliye.")
         } else {
-            CommandRouter.handleAsync(this, cmd) { say(it) }
+            Brain.process(this, cmd) { t, l, a -> say(t, l, a) }
         }
     }
 
@@ -134,13 +135,13 @@ class SaraService : Service(), RecognitionListener {
         h.postDelayed({ listen() }, delay)
     }
 
-    private fun say(text: String) {
-        if (!ttsReady) { listen(); return }
+    private fun say(text: String, lang: String? = null, add: Boolean = false) {
+        if (!speaker.ready) { listen(); return }
         speaking = true
         AvatarOverlay.show(this)
         AvatarOverlay.speaking(true)
         sr?.cancel()
-        tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "u" + System.nanoTime())
+        speaker.speak(text, lang, add)
     }
 
     override fun onReadyForSpeech(p: Bundle?) {}
@@ -156,7 +157,7 @@ class SaraService : Service(), RecognitionListener {
         h.removeCallbacks(hideTask)
         AvatarOverlay.hide(this)
         sr?.destroy()
-        tts.shutdown()
+        speaker.shutdown()
         super.onDestroy()
     }
 }
